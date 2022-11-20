@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>💗</title>
+
+    <script src="result.js"></script>
+    <style>
+
+    </style>
+</head>
+
+<body style="background-color:#000;" onload="onload()">
+    <canvas id="heart" width="1800" height="900"></canvas>
+</body>
+
+<script>
+    let height = 40000
+    let width = 4000
+
+    function onload() {
+        const canvas = document.getElementById('heart');
+        const ctx = canvas.getContext('2d');
+        console.log(points)
+
+        points = JSON.parse(points)
+
+        // while (true) {
+            for (let j = 0; j < points.length; j++) {
+
+                const frame_points = points[j];
+
+                setInterval(() => {
+                    ctx.clearRect(0,0,1500,1200)
+                    update(ctx, frame_points)
+                }, 23);
+            }
+        // }
+    }
+
+    function update(ctx, frame_points) {
+        let imageData = ctx.getImageData(0, 0, width, height)
+        for (let i = 0; i < frame_points["x"].length / 3; i++) {
+            let y = frame_points["x"][i * 3]
+            let x = frame_points["y"][i * 3]
+            let data = frame_points["data"][i * 3]
+
+            let index = (x + y * width) * 4
+            imageData.data[index + 0] = data[2]*1.2
+            imageData.data[index + 1] = data[1]
+            imageData.data[index + 2] = data[0]
+            imageData.data[index + 3] = 255
+
+        }
+        ctx.putImageData(imageData, 0, 0)
+    }
+
+    function draw(imageData, y, x, r, g, b) {
+        let index = (x + y * width) * 4
+        imageData.data[index + 0] = r
+        imageData.data[index + 1] = g
+        imageData.data[index + 2] = b
+        imageData.data[index + 3] = 255
+    }
+
+
+</script>
+
+</html>
