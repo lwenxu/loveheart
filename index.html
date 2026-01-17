@@ -7,7 +7,18 @@
 
     <script src="result.js"></script>
     <style>
-
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #heart {
+            display: block;
+        }
     </style>
 </head>
 
@@ -26,17 +37,14 @@
 
         points = JSON.parse(points)
 
-        // while (true) {
-            for (let j = 0; j < points.length; j++) {
+        let currentFrame = 0;
 
-                const frame_points = points[j];
-
-                setInterval(() => {
-                    ctx.clearRect(0,0,1500,1200)
-                    update(ctx, frame_points)
-                }, 23);
-            }
-        // }
+        // 使用单个定时器循环播放所有帧
+        setInterval(() => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            update(ctx, points[currentFrame])
+            currentFrame = (currentFrame + 1) % points.length;
+        }, 50); // 50ms = 20fps，可以调整这个值来改变闪动速度
     }
 
     function update(ctx, frame_points) {
