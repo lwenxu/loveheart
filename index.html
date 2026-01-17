@@ -64,9 +64,9 @@
         offscreenCanvas.height = heartHeight;
         offscreenCtx = offscreenCanvas.getContext('2d');
 
-        // 计算缩放比例，使爱心占画布的 3/4
-        const targetWidth = canvas.width * 0.75;
-        const targetHeight = canvas.height * 0.75;
+        // 计算缩放比例，使爱心占画布的 3/5
+        const targetWidth = canvas.width * 0.6;
+        const targetHeight = canvas.height * 0.6;
         scale = Math.min(targetWidth / heartWidth, targetHeight / heartHeight);
 
         // 启用图像平滑
