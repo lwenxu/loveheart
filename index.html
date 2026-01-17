@@ -27,52 +27,89 @@
 </body>
 
 <script>
-    let height = 40000
-    let width = 4000
+    // 用于存储变换参数
+    let offsetX = 0;
+    let offsetY = 0;
+    let scale = 1;
+    let heartCenterX = 0;
+    let heartCenterY = 0;
 
     function onload() {
         const canvas = document.getElementById('heart');
         const ctx = canvas.getContext('2d');
-        console.log(points)
 
         points = JSON.parse(points)
+
+        // 计算所有帧中爱心的坐标边界
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+
+        for (let j = 0; j < points.length; j++) {
+            const frame_points = points[j];
+            for (let i = 0; i < frame_points["x"].length; i++) {
+                let y = frame_points["x"][i]
+                let x = frame_points["y"][i]
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                minY = Math.min(minY, y);
+                maxY = Math.max(maxY, y);
+            }
+        }
+
+        // 计算爱心的中心点和尺寸
+        heartCenterX = (minX + maxX) / 2;
+        heartCenterY = (minY + maxY) / 2;
+        const heartWidth = maxX - minX;
+        const heartHeight = maxY - minY;
+
+        // 计算缩放比例，使爱心占画布的 3/4
+        const targetWidth = canvas.width * 0.75;
+        const targetHeight = canvas.height * 0.75;
+        scale = Math.min(targetWidth / heartWidth, targetHeight / heartHeight);
+
+        // 画布中心
+        const canvasCenterX = canvas.width / 2;
+        const canvasCenterY = canvas.height / 2;
+
+        console.log('缩放比例:', scale);
+        console.log('爱心原始尺寸:', { heartWidth, heartHeight });
+        console.log('缩放后尺寸:', { width: heartWidth * scale, height: heartHeight * scale });
 
         let currentFrame = 0;
 
         // 使用单个定时器循环播放所有帧
         setInterval(() => {
             ctx.clearRect(0, 0, canvas.width, canvas.height)
-            update(ctx, points[currentFrame])
+            update(ctx, canvas, points[currentFrame])
             currentFrame = (currentFrame + 1) % points.length;
-        }, 50); // 50ms = 20fps，可以调整这个值来改变闪动速度
+        }, 50);
     }
 
-    function update(ctx, frame_points) {
-        let imageData = ctx.getImageData(0, 0, width, height)
-        for (let i = 0; i < frame_points["x"].length / 3; i++) {
-            let y = frame_points["x"][i * 3]
-            let x = frame_points["y"][i * 3]
-            let data = frame_points["data"][i * 3]
+    function update(ctx, canvas, frame_points) {
+        const canvasCenterX = canvas.width / 2;
+        const canvasCenterY = canvas.height / 2;
 
-            let index = (x + y * width) * 4
-            imageData.data[index + 0] = data[2]*1.2
-            imageData.data[index + 1] = data[1]
-            imageData.data[index + 2] = data[0]
-            imageData.data[index + 3] = 255
+        // 使用 Canvas 2D API 绘制，支持缩放
+        for (let i = 0; i < frame_points["x"].length; i++) {
+            let origY = frame_points["x"][i]
+            let origX = frame_points["y"][i]
+            let data = frame_points["data"][i]
 
+            // 相对于爱心中心缩放，然后移到画布中心
+            let x = Math.round((origX - heartCenterX) * scale + canvasCenterX);
+            let y = Math.round((origY - heartCenterY) * scale + canvasCenterY);
+
+            // 确保坐标在canvas范围内
+            if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+                const r = Math.min(255, data[2] * 1.2);
+                const g = data[1];
+                const b = data[0];
+
+                ctx.fillStyle = `rgb(${r},${g},${b})`;
+                ctx.fillRect(x, y, Math.ceil(scale), Math.ceil(scale));
+            }
         }
-        ctx.putImageData(imageData, 0, 0)
     }
-
-    function draw(imageData, y, x, r, g, b) {
-        let index = (x + y * width) * 4
-        imageData.data[index + 0] = r
-        imageData.data[index + 1] = g
-        imageData.data[index + 2] = b
-        imageData.data[index + 3] = 255
-    }
-
-
 </script>
 
 </html>
