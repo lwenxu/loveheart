@@ -27,12 +27,10 @@
 </body>
 
 <script>
-    // 用于存储变换参数
-    let offsetX = 0;
-    let offsetY = 0;
+    // 存储边界信息
+    let minX, minY, maxX, maxY;
+    let offscreenCanvas, offscreenCtx;
     let scale = 1;
-    let heartCenterX = 0;
-    let heartCenterY = 0;
 
     function onload() {
         const canvas = document.getElementById('heart');
@@ -41,8 +39,8 @@
         points = JSON.parse(points)
 
         // 计算所有帧中爱心的坐标边界
-        let minX = Infinity, maxX = -Infinity;
-        let minY = Infinity, maxY = -Infinity;
+        minX = Infinity; maxX = -Infinity;
+        minY = Infinity; maxY = -Infinity;
 
         for (let j = 0; j < points.length; j++) {
             const frame_points = points[j];
@@ -56,23 +54,27 @@
             }
         }
 
-        // 计算爱心的中心点和尺寸
-        heartCenterX = (minX + maxX) / 2;
-        heartCenterY = (minY + maxY) / 2;
-        const heartWidth = maxX - minX;
-        const heartHeight = maxY - minY;
+        // 爱心原始尺寸（加一点边距）
+        const heartWidth = maxX - minX + 1;
+        const heartHeight = maxY - minY + 1;
+
+        // 创建离屏 canvas，尺寸为爱心原始大小
+        offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = heartWidth;
+        offscreenCanvas.height = heartHeight;
+        offscreenCtx = offscreenCanvas.getContext('2d');
 
         // 计算缩放比例，使爱心占画布的 3/4
         const targetWidth = canvas.width * 0.75;
         const targetHeight = canvas.height * 0.75;
         scale = Math.min(targetWidth / heartWidth, targetHeight / heartHeight);
 
-        // 画布中心
-        const canvasCenterX = canvas.width / 2;
-        const canvasCenterY = canvas.height / 2;
+        // 启用图像平滑
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
 
-        console.log('缩放比例:', scale);
         console.log('爱心原始尺寸:', { heartWidth, heartHeight });
+        console.log('缩放比例:', scale);
         console.log('缩放后尺寸:', { width: heartWidth * scale, height: heartHeight * scale });
 
         let currentFrame = 0;
@@ -86,29 +88,40 @@
     }
 
     function update(ctx, canvas, frame_points) {
-        const canvasCenterX = canvas.width / 2;
-        const canvasCenterY = canvas.height / 2;
+        // 清空离屏 canvas
+        offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
 
-        // 使用 Canvas 2D API 绘制，支持缩放
+        // 在离屏 canvas 上以原始尺寸绘制（每点1像素）
+        const imageData = offscreenCtx.createImageData(offscreenCanvas.width, offscreenCanvas.height);
+
         for (let i = 0; i < frame_points["x"].length; i++) {
             let origY = frame_points["x"][i]
             let origX = frame_points["y"][i]
             let data = frame_points["data"][i]
 
-            // 相对于爱心中心缩放，然后移到画布中心
-            let x = Math.round((origX - heartCenterX) * scale + canvasCenterX);
-            let y = Math.round((origY - heartCenterY) * scale + canvasCenterY);
+            // 相对于边界偏移
+            let x = origX - minX;
+            let y = origY - minY;
 
-            // 确保坐标在canvas范围内
-            if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
-                const r = Math.min(255, data[2] * 1.2);
-                const g = data[1];
-                const b = data[0];
-
-                ctx.fillStyle = `rgb(${r},${g},${b})`;
-                ctx.fillRect(x, y, Math.ceil(scale), Math.ceil(scale));
+            if (x >= 0 && x < offscreenCanvas.width && y >= 0 && y < offscreenCanvas.height) {
+                let index = (x + y * offscreenCanvas.width) * 4;
+                imageData.data[index + 0] = Math.min(255, data[2] * 1.2);
+                imageData.data[index + 1] = data[1];
+                imageData.data[index + 2] = data[0];
+                imageData.data[index + 3] = 255;
             }
         }
+
+        offscreenCtx.putImageData(imageData, 0, 0);
+
+        // 计算绘制位置，使爱心居中
+        const destWidth = offscreenCanvas.width * scale;
+        const destHeight = offscreenCanvas.height * scale;
+        const destX = (canvas.width - destWidth) / 2;
+        const destY = (canvas.height - destHeight) / 2;
+
+        // 用 drawImage 缩放绘制到主 canvas（浏览器自动插值）
+        ctx.drawImage(offscreenCanvas, destX, destY, destWidth, destHeight);
     }
 </script>
 
