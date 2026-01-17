@@ -32,6 +32,180 @@
     let offscreenCanvas, offscreenCtx;
     let scale = 1;
 
+    // 粒子系统
+    let tornadoParticles = [];  // 龙卷风粒子
+    let trayParticles = [];     // 托盘上的粒子
+    let heartBottomY = 0;       // 爱心底部Y坐标
+    let heartCenterX = 0;       // 爱心中心X坐标
+    let trayY = 0;              // 托盘Y坐标
+    let globalRotation = 0;     // 全局旋转角度
+
+    // 托盘粒子类（使用极坐标）
+    class TrayParticle {
+        constructor(angle, radiusX, radiusY, size, hue, alpha) {
+            this.angle = angle;
+            this.radiusX = radiusX;
+            this.radiusY = radiusY;
+            this.size = size;
+            this.hue = hue;
+            this.alpha = alpha;
+            this.speed = 0.008 + Math.random() * 0.012; // 旋转速度
+        }
+    }
+
+    // 龙卷风粒子类（气泡效果）
+    class TornadoParticle {
+        constructor(angle, radius, y, size, alpha) {
+            this.angle = angle;
+            this.radius = radius;
+            this.y = y;
+            this.size = size;
+            this.alpha = alpha;
+            this.speed = 0.02 + Math.random() * 0.03; // 旋转速度
+            this.riseSpeed = 1 + Math.random() * 1.5;   // 上升速度（慢一些）
+            this.wobble = Math.random() * Math.PI * 2;  // 摆动相位
+            this.wobbleSpeed = 0.05 + Math.random() * 0.05; // 摆动速度
+        }
+    }
+
+    // 初始化托盘粒子（椭圆形分布）
+    function initTrayParticles(canvas) {
+        trayY = canvas.height * 0.88;
+        const trayWidth = canvas.width * 0.45;
+        const trayHeight = 35;
+
+        for (let i = 0; i < 2000; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radiusX = (0.2 + Math.random() * 0.8) * trayWidth;
+            const radiusY = (0.2 + Math.random() * 0.8) * trayHeight;
+            const hue = 280 + Math.random() * 40;
+            const size = 1 + Math.random() * 2;
+            const alpha = 0.4 + Math.random() * 0.6;
+
+            trayParticles.push(new TrayParticle(
+                angle, radiusX, radiusY, size, hue, alpha
+            ));
+        }
+    }
+
+    // 生成龙卷风粒子（气泡效果，从托盘上升到爱心）
+    function spawnTornadoParticle(canvas) {
+        const angle = Math.random() * Math.PI * 2;
+        const startRadius = 20 + Math.random() * 140; // 更分散的起始位置
+        const size = 2 + Math.random() * 4;  // 更大的气泡
+        const alpha = 0.3 + Math.random() * 0.5;  // 更透明一些
+
+        tornadoParticles.push(new TornadoParticle(
+            angle, startRadius, trayY, size, alpha
+        ));
+    }
+
+    // 更新粒子
+    function updateParticles(canvas) {
+        // 更新全局旋转
+        globalRotation += 0.02;
+
+        // 更新托盘粒子（旋转）
+        for (let p of trayParticles) {
+            p.angle += p.speed;
+        }
+
+        // 更新龙卷风粒子（气泡效果）
+        for (let i = tornadoParticles.length - 1; i >= 0; i--) {
+            const p = tornadoParticles[i];
+
+            // 计算进度：0 = 托盘位置，1 = 爱心底部
+            const progress = Math.max(0, Math.min(1, (trayY - p.y) / (trayY - heartBottomY)));
+
+            // 缓慢旋转
+            p.angle += p.speed;
+
+            // 气泡摆动
+            p.wobble += p.wobbleSpeed;
+
+            // 上升速度（气泡缓慢上升）
+            p.y -= p.riseSpeed;
+
+            // 双锥形龙卷风：下面大锥形 + 上面小锥形
+            const midPoint = 0.5;
+            const bottomRadius = 160;
+            const midRadius = 30;
+            const topRadius = 60;
+            const endRadius = 5;
+
+            let targetRadius;
+            if (progress < midPoint) {
+                const t = progress / midPoint;
+                targetRadius = bottomRadius * (1 - t) + midRadius * t;
+            } else {
+                const t = (progress - midPoint) / (1 - midPoint);
+                if (t < 0.3) {
+                    const t2 = t / 0.3;
+                    targetRadius = midRadius * (1 - t2) + topRadius * t2;
+                } else {
+                    const t2 = (t - 0.3) / 0.7;
+                    targetRadius = topRadius * (1 - t2) + endRadius * t2;
+                }
+            }
+            p.radius += (targetRadius - p.radius) * 0.1;
+
+            // 透明度变化
+            if (progress > 0.95) {
+                p.alpha -= 0.15;
+            }
+
+            // 到达爱心底部或消失
+            if (p.y < heartBottomY || p.alpha <= 0) {
+                tornadoParticles.splice(i, 1);
+            }
+        }
+    }
+
+    // 绘制托盘粒子（在爱心下面）
+    function drawTrayParticles(ctx, canvas) {
+        const centerX = canvas.width / 2;
+
+        for (let p of trayParticles) {
+            const x = centerX + Math.cos(p.angle) * p.radiusX;
+            const y = trayY + Math.sin(p.angle) * p.radiusY;
+
+            ctx.beginPath();
+            ctx.arc(x, y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = `hsl(${p.hue}, 70%, 65%)`;
+            ctx.globalAlpha = p.alpha;
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    // 绘制龙卷风粒子（气泡效果，在爱心上面）
+    function drawTornadoParticles(ctx, canvas) {
+        const centerX = canvas.width / 2;
+
+        for (let p of tornadoParticles) {
+            // 添加摆动效果，让气泡左右飘动
+            const wobbleOffset = Math.sin(p.wobble) * 8;
+            const x = centerX + Math.cos(p.angle) * p.radius + wobbleOffset;
+            const y = p.y;
+
+            // 计算进度：0 = 托盘位置，1 = 爱心底部
+            const progress = Math.max(0, Math.min(1, (trayY - p.y) / (trayY - heartBottomY)));
+
+            // 颜色从紫色(280)渐变到粉红/红色(340)
+            const hue = 280 + progress * 60;
+            const saturation = 70 + progress * 15;
+            const lightness = 65 + progress * 10;
+
+            ctx.beginPath();
+            ctx.arc(x, y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            ctx.globalAlpha = p.alpha;
+            ctx.fill();
+        }
+
+        ctx.globalAlpha = 1;
+    }
+
     function onload() {
         const canvas = document.getElementById('heart');
         const ctx = canvas.getContext('2d');
@@ -69,9 +243,19 @@
         const targetHeight = canvas.height * 0.6;
         scale = Math.min(targetWidth / heartWidth, targetHeight / heartHeight);
 
+        // 计算爱心位置信息用于粒子系统
+        const destWidth = offscreenCanvas.width * scale;
+        const destHeight = offscreenCanvas.height * scale;
+        heartCenterX = canvas.width / 2;
+        // 爱心底部Y坐标（向上偏移让粒子能连接到爱心尖端）
+        heartBottomY = (canvas.height - destHeight) / 2 + destHeight - 100;
+
         // 启用图像平滑
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
+
+        // 初始化托盘粒子
+        initTrayParticles(canvas);
 
         console.log('爱心原始尺寸:', { heartWidth, heartHeight });
         console.log('缩放比例:', scale);
@@ -82,8 +266,24 @@
         // 使用单个定时器循环播放所有帧
         setInterval(() => {
             ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+            // 生成新的龙卷风粒子（稀疏的气泡）
+            if (Math.random() < 0.9) {
+                spawnTornadoParticle(canvas);
+            }
+
+            // 更新粒子
+            updateParticles(canvas);
+
+            // 1. 先绘制托盘粒子（在最底层）
+            drawTrayParticles(ctx, canvas);
+
+            // 2. 绘制爱心
             update(ctx, canvas, points[currentFrame])
             currentFrame = (currentFrame + 1) % points.length;
+
+            // 3. 最后绘制龙卷风粒子（在爱心上面，这样能连接到爱心）
+            drawTornadoParticles(ctx, canvas);
         }, 50);
     }
 
@@ -105,10 +305,18 @@
 
             if (x >= 0 && x < offscreenCanvas.width && y >= 0 && y < offscreenCanvas.height) {
                 let index = (x + y * offscreenCanvas.width) * 4;
-                imageData.data[index + 0] = Math.min(255, data[2] * 1.2);
-                imageData.data[index + 1] = data[1];
-                imageData.data[index + 2] = data[0];
-                imageData.data[index + 3] = 255;
+                let r = Math.min(255, data[2] * 1.2);
+                let g = data[1];
+                let b = data[0];
+
+                // 计算亮度，暗色粒子设为透明
+                let brightness = (r + g + b) / 3;
+                let alpha = brightness < 10 ? 0 : 255;
+
+                imageData.data[index + 0] = r;
+                imageData.data[index + 1] = g;
+                imageData.data[index + 2] = b;
+                imageData.data[index + 3] = alpha;
             }
         }
 
