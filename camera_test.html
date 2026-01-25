@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>摄像头测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        #videoContainer {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        video {
+            border: 3px solid #4CAF50;
+            border-radius: 10px;
+            transform: scaleX(-1);
+        }
+
+        #status {
+            text-align: center;
+            font-size: 18px;
+            margin: 20px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+
+        button {
+            display: block;
+            margin: 20px auto;
+            padding: 15px 30px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>摄像头测试页面</h1>
+    <div id="status">点击下方按钮启动摄像头</div>
+    <button onclick="startCamera()">启动摄像头</button>
+    <div id="videoContainer">
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const status = document.getElementById('status');
+
+        async function startCamera() {
+            try {
+                status.textContent = '正在请求摄像头权限...';
+
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: 640,
+                        height: 480,
+                        facingMode: 'user'
+                    }
+                });
+
+                video.srcObject = stream;
+                await video.play();
+
+                status.textContent = '✅ 摄像头启动成功！';
+                status.style.background = 'rgba(76, 175, 80, 0.3)';
+
+                console.log('Camera stream:', stream);
+                console.log('Video ready state:', video.readyState);
+
+            } catch (error) {
+                status.textContent = '❌ 摄像头启动失败: ' + error.message;
+                status.style.background = 'rgba(244, 67, 54, 0.3)';
+                console.error('Camera error:', error);
+            }
+        }
+
+        // Auto start after 2 seconds
+        setTimeout(() => {
+            startCamera();
+        }, 2000);
+    </script>
+</body>
+
+</html>

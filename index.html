@@ -6,6 +6,10 @@
     <title>💗</title>
 
     <script src="result.js"></script>
+    <!-- MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
     <style>
         body {
             margin: 0;
@@ -17,14 +21,160 @@
             overflow: hidden;
             background-color: #000;
         }
+
         #heart {
             display: block;
+        }
+
+        /* Gesture detection overlay */
+        #gesturePrompt {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.8);
+            z-index: 10;
+            display: none;
+            animation: pulsePrompt 2s infinite;
+        }
+
+        @keyframes pulsePrompt {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                opacity: 0.8;
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+        }
+
+        #cameraContainer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 11;
+            display: none;
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        #cameraVideo {
+            width: 320px;
+            height: 240px;
+            transform: scaleX(-1);
+        }
+
+        #cameraCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 320px;
+            height: 240px;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
+
+        #detectionStatus {
+            position: fixed;
+            top: 270px;
+            right: 20px;
+            z-index: 11;
+            color: #ffeb3b;
+            font-size: 18px;
+            text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.8);
+            display: none;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 10px;
+        }
+
+        /* Memory mode */
+        #memoryMode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            z-index: 20;
+            display: none;
+            opacity: 0;
+            transition: opacity 1.5s;
+        }
+
+        #memoryMode.show {
+            opacity: 1;
+        }
+
+        #memoryImage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 80%;
+            max-height: 80%;
+            object-fit: contain;
+            opacity: 0;
+            transition: opacity 1.5s;
+        }
+
+        #memoryImage.show {
+            opacity: 1;
+        }
+
+        #memoryText {
+            position: absolute;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 32px;
+            text-align: center;
+            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.9);
+            opacity: 0;
+            transition: opacity 1.5s;
+            max-width: 80%;
+            line-height: 1.6;
+        }
+
+        #memoryText.show {
+            opacity: 1;
         }
     </style>
 </head>
 
 <body onload="onload()">
     <canvas id="heart" width="1800" height="900"></canvas>
+
+    <!-- Gesture detection UI -->
+    <div id="gesturePrompt">
+        <span class="heart-icon">💗</span><br>
+        请双手越过头顶比爱心<br>
+        <span style="font-size: 24px;">解锁我们的回忆</span>
+    </div>
+
+    <div id="cameraContainer">
+        <video id="cameraVideo" autoplay playsinline></video>
+        <canvas id="cameraCanvas"></canvas>
+    </div>
+
+    <div id="detectionStatus">等待检测...</div>
+
+    <!-- Memory mode -->
+    <div id="memoryMode">
+        <img id="memoryImage" src="" alt="Memory">
+        <div id="memoryText"></div>
+    </div>
 </body>
 
 <script>
@@ -909,6 +1059,362 @@
 
         // 用 drawImage 缩放绘制到主 canvas（浏览器自动插值）
         ctx.drawImage(offscreenCanvas, destX, destY, destWidth, destHeight);
+    }
+
+    // ====== Gesture Detection & Memory Mode ======
+
+    // UI elements
+    const gesturePrompt = document.getElementById('gesturePrompt');
+    const cameraContainer = document.getElementById('cameraContainer');
+    const cameraVideo = document.getElementById('cameraVideo');
+    const cameraCanvas = document.getElementById('cameraCanvas');
+    const detectionStatus = document.getElementById('detectionStatus');
+    const memoryMode = document.getElementById('memoryMode');
+    const memoryImage = document.getElementById('memoryImage');
+    const memoryText = document.getElementById('memoryText');
+
+    // Detection state
+    let hands;
+    let heartDetectedFrames = 0;
+    const requiredFrames = 20;
+    let isMemoryMode = false;
+
+    // Memory images and texts
+    const memoryFiles = [
+        'DSC00508.JPG', 'IMG_2922.JPG', 'IMG_2924.JPG', 'IMG_2925.JPG', 'IMG_2926.JPG',
+        'IMG_2927.JPG', 'IMG_2928.JPG', 'IMG_2929.jpg', 'IMG_2930.PNG', 'IMG_2931.PNG',
+        'IMG_2932.jpg', 'IMG_2933.jpg', 'IMG_2934.JPG', 'IMG_2935.JPG', 'IMG_2936.JPG',
+        'IMG_2937.JPG', 'IMG_2938.JPG', 'IMG_2939.JPG', 'IMG_2941.jpg', 'IMG_2943.JPG',
+        'IMG_2944.JPG', 'IMG_2945.JPG', 'IMG_2946.JPG', 'IMG_2947.JPG', 'IMG_2948.JPG',
+        'IMG_2949.JPG', 'IMG_2950.JPG', 'IMG_2951.JPG', 'IMG_2952.JPG', 'IMG_2953.JPG',
+        'IMG_2954.JPG', 'IMG_2955.JPG', 'IMG_2956.JPG', 'IMG_2957.JPG', 'IMG_2958.JPG',
+        'IMG_2959.JPG', 'IMG_2960.JPG', 'IMG_2961.JPG', 'IMG_2962.JPG', 'IMG_2963.JPG',
+        'IMG_2964.JPG', 'IMG_2965.JPG', 'IMG_2966.JPG', 'IMG_2967.JPG', 'IMG_2968.JPG',
+        'IMG_2969.JPG', 'IMG_2970.JPG', 'IMG_2971.JPG', 'IMG_2972.JPG', 'IMG_2973.JPG',
+        'IMG_2974.JPG', 'IMG_2975.JPG', 'IMG_2981.JPG', 'IMG_2982.JPG', 'IMG_2983.JPG',
+        'IMG_2984.JPG', 'IMG_2985.JPG', 'IMG_2986.JPG', 'IMG_2987.JPG', 'IMG_2988.JPG',
+        'IMG_2989.jpg', 'IMG_2990.JPG', 'IMG_2991.JPG', 'IMG_2993.JPG', 'IMG_2994.JPG',
+        'IMG_2995.JPG', 'IMG_2996.JPG', 'IMG_2997.JPG', 'IMG_2998.JPG', 'IMG_2999.JPG',
+        'IMG_3001.JPG', 'IMG_3002.JPG', 'IMG_3003.JPG', 'IMG_3004.JPG', 'IMG_3005.JPG',
+        'IMG_3006.JPG', 'IMG_3007.JPG', 'IMG_3008.JPG', 'IMG_3009.JPG', 'IMG_3010.JPG',
+        'IMG_3011.JPG', 'IMG_3012.JPG', 'IMG_3013.JPG', 'IMG_3014.JPG', 'IMG_3015.JPG',
+        'IMG_3016.JPG', 'IMG_3025.JPG', 'IMG_3026.JPG', 'IMG_3027.JPG', 'IMG_3028.JPG'
+    ];
+
+    const memoryTexts = [
+        '那是我们的第一次相遇',
+        '你的笑容，如阳光般温暖',
+        '那些美好的瞬间',
+        '我们一起走过的每一步',
+        '你说的每一句话，我都记得',
+        '那天的天气很好，你更好',
+        '和你在一起的每一刻',
+        '都是我最珍贵的回忆',
+        '你让我相信',
+        '这世界上真的有童话',
+        '我想牵着你的手',
+        '一直走到世界的尽头',
+        '你知道吗',
+        '遇见你是我最大的幸运',
+        '从那天起',
+        '我的世界开始有了颜色',
+        '每一次看到你',
+        '我的心都会跳得很快',
+        '我想把所有的温柔',
+        '都给你一个人',
+        '和你一起的时光',
+        '是我最快乐的时光',
+        '你的每一个表情',
+        '我都想永远记住',
+        '那些一起的日子',
+        '是我生命中最美的风景',
+        '我想和你一起',
+        '看遍世间所有的美好',
+        '你就是我的星辰大海',
+        '是我所有的梦想',
+        '和你在一起',
+        '每一天都是新的开始',
+        '我想陪你看日出日落',
+        '陪你度过每一个春夏秋冬',
+        '你是我的唯一',
+        '是我此生最美的遇见',
+        '那些温暖的瞬间',
+        '我会永远珍藏',
+        '你让我明白',
+        '什么是真正的幸福',
+        '我想给你最好的一切',
+        '用我全部的爱',
+        '每一次相遇',
+        '都是久别重逢',
+        '你在的地方',
+        '就是我的家',
+        '我想和你一起',
+        '创造更多美好的回忆',
+        '你是我心中',
+        '最柔软的那一部分',
+        '和你的每一张照片',
+        '都是我最珍贵的宝藏',
+        '我想把这些美好',
+        '都留在时光里',
+        '你知道吗',
+        '你就是我的全世界',
+        '那些笑容和泪水',
+        '都是我们爱的证明',
+        '我想对你说',
+        '谢谢你出现在我的生命里',
+        '未来的每一天',
+        '我都想和你一起度过',
+        '你是我的阳光',
+        '照亮了我的整个世界',
+        '这些回忆',
+        '是我们爱情最美的见证',
+        '我爱你',
+        '从过去到现在，到永远',
+        '愿我们的故事',
+        '永远没有结局',
+        '只有一个又一个',
+        '美好的开始',
+        '你，就是我的',
+        'happily ever after',
+        '我想和你',
+        '一直这样幸福下去',
+        '直到永远',
+        '我爱你 💗'
+    ];
+
+    // Show prompt after 2 seconds
+    setTimeout(() => {
+        if (!isMemoryMode) {
+            gesturePrompt.style.display = 'block';
+            initGestureDetection();
+        }
+    }, 2000);
+
+    // Initialize gesture detection
+    async function initGestureDetection() {
+        hands = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onHandsResults);
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: 640,
+                    height: 480,
+                    facingMode: 'user'
+                }
+            });
+
+            cameraVideo.srcObject = stream;
+            await cameraVideo.play();
+
+            cameraCanvas.width = 640;
+            cameraCanvas.height = 480;
+            cameraContainer.style.display = 'block';
+            detectionStatus.style.display = 'block';
+
+            // Send video frames to hands detection
+            async function detectFrame() {
+                if (!isMemoryMode && cameraVideo.readyState === cameraVideo.HAVE_ENOUGH_DATA) {
+                    await hands.send({ image: cameraVideo });
+                }
+                if (!isMemoryMode) {
+                    requestAnimationFrame(detectFrame);
+                }
+            }
+            detectFrame();
+        } catch (error) {
+            detectionStatus.textContent = '无法访问摄像头: ' + error.message;
+            console.error('Camera error:', error);
+        }
+    }
+
+    // Detect overhead heart gesture
+    function detectOverheadHeartGesture(landmarks) {
+        if (landmarks.length !== 2) return { isHeart: false, debug: '需要双手' };
+
+        const hand1 = landmarks[0];
+        const hand2 = landmarks[1];
+
+        // Get key points
+        const thumb1Tip = hand1[4];
+        const index1Tip = hand1[8];
+        const thumb2Tip = hand2[4];
+        const index2Tip = hand2[8];
+        const wrist1 = hand1[0];
+        const wrist2 = hand2[0];
+
+        const distance = (p1, p2) => {
+            return Math.sqrt(
+                Math.pow(p1.x - p2.x, 2) +
+                Math.pow(p1.y - p2.y, 2) +
+                Math.pow(p1.z - p2.z, 2)
+            );
+        };
+
+        const thumbDistance = distance(thumb1Tip, thumb2Tip);
+        const indexDistance = distance(index1Tip, index2Tip);
+
+        // Check if hands are above head (lower y value = higher position)
+        const avgWristY = (wrist1.y + wrist2.y) / 2;
+        const avgFingerY = (thumb1Tip.y + thumb2Tip.y + index1Tip.y + index2Tip.y) / 4;
+
+        const isOverhead = avgWristY < 0.4; // Hands should be in upper part of frame
+        const isHeartShape = thumbDistance < 0.15 && indexDistance < 0.15;
+
+        return {
+            isHeart: isOverhead && isHeartShape,
+            debug: `越过头顶: ${isOverhead}, 爱心形状: ${isHeartShape}`
+        };
+    }
+
+    // Draw hand landmarks
+    function drawLandmarks(landmarks) {
+        const ctx = cameraCanvas.getContext('2d');
+        ctx.clearRect(0, 0, cameraCanvas.width, cameraCanvas.height);
+
+        for (let hand of landmarks) {
+            // Draw points
+            for (let i = 0; i < hand.length; i++) {
+                const point = hand[i];
+                const x = point.x * cameraCanvas.width;
+                const y = point.y * cameraCanvas.height;
+
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = (i === 4 || i === 8) ? '#ff0000' : '#00ff00';
+                ctx.fill();
+            }
+
+            // Draw connections
+            const connections = [
+                [0, 1], [1, 2], [2, 3], [3, 4],
+                [0, 5], [5, 6], [6, 7], [7, 8],
+                [0, 9], [9, 10], [10, 11], [11, 12],
+                [0, 13], [13, 14], [14, 15], [15, 16],
+                [0, 17], [17, 18], [18, 19], [19, 20]
+            ];
+
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+            ctx.lineWidth = 2;
+            for (let [start, end] of connections) {
+                const p1 = hand[start];
+                const p2 = hand[end];
+                ctx.beginPath();
+                ctx.moveTo(p1.x * cameraCanvas.width, p1.y * cameraCanvas.height);
+                ctx.lineTo(p2.x * cameraCanvas.width, p2.y * cameraCanvas.height);
+                ctx.stroke();
+            }
+        }
+    }
+
+    // Handle hands detection results
+    function onHandsResults(results) {
+        if (isMemoryMode) return; // Don't process if already in memory mode
+
+        if (results.multiHandLandmarks) {
+            drawLandmarks(results.multiHandLandmarks);
+        }
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length === 2) {
+            const result = detectOverheadHeartGesture(results.multiHandLandmarks);
+
+            if (result.isHeart) {
+                heartDetectedFrames++;
+                const progress = Math.floor((heartDetectedFrames / requiredFrames) * 100);
+                detectionStatus.textContent = `检测到爱心手势！${progress}%`;
+                detectionStatus.style.color = '#ff69b4';
+
+                if (heartDetectedFrames >= requiredFrames) {
+                    detectionStatus.textContent = '成功！进入回忆模式...';
+                    setTimeout(() => {
+                        startMemoryMode();
+                    }, 500);
+                }
+            } else {
+                heartDetectedFrames = Math.max(0, heartDetectedFrames - 1);
+                detectionStatus.textContent = result.debug;
+                detectionStatus.style.color = '#ffeb3b';
+            }
+        } else {
+            heartDetectedFrames = Math.max(0, heartDetectedFrames - 2);
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length === 1) {
+                detectionStatus.textContent = '请使用双手';
+            } else {
+                detectionStatus.textContent = '请将双手放在镜头前';
+            }
+            detectionStatus.style.color = '#ffffff';
+        }
+    }
+
+    // Start memory slideshow
+    function startMemoryMode() {
+        isMemoryMode = true;
+
+        // Hide detection UI
+        gesturePrompt.style.display = 'none';
+        cameraContainer.style.display = 'none';
+        detectionStatus.style.display = 'none';
+
+        // Stop camera stream
+        if (cameraVideo.srcObject) {
+            const tracks = cameraVideo.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            cameraVideo.srcObject = null;
+        }
+
+        // Show memory mode
+        memoryMode.style.display = 'block';
+        setTimeout(() => {
+            memoryMode.classList.add('show');
+        }, 50);
+
+        // Start slideshow
+        let currentIndex = 0;
+        showMemory(currentIndex);
+
+        function showMemory(index) {
+            if (index >= memoryFiles.length) {
+                // End of slideshow
+                setTimeout(() => {
+                    memoryText.textContent = '这就是我们的故事 💗';
+                    memoryText.classList.add('show');
+                }, 2000);
+                return;
+            }
+
+            // Hide current
+            memoryImage.classList.remove('show');
+            memoryText.classList.remove('show');
+
+            setTimeout(() => {
+                // Load new image
+                memoryImage.src = 'memorys/' + memoryFiles[index];
+                memoryText.textContent = memoryTexts[index % memoryTexts.length];
+
+                // Show new
+                setTimeout(() => {
+                    memoryImage.classList.add('show');
+                    memoryText.classList.add('show');
+                }, 100);
+
+                // Next image after 4 seconds
+                setTimeout(() => {
+                    showMemory(index + 1);
+                }, 4000);
+            }, 1500); // Wait for fade out
+        }
     }
 </script>
 
