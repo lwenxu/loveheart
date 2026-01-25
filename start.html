@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>💗 Love Heart</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #background {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #videoContainer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            text-align: center;
+        }
+
+        #video {
+            width: 640px;
+            height: 480px;
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            border-radius: 20px;
+            transform: scaleX(-1); /* 镜像翻转 */
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 640px;
+            height: 480px;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
+
+        #instruction {
+            margin-top: 20px;
+            font-size: 28px;
+            color: white;
+            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.8);
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+
+        #status {
+            margin-top: 10px;
+            font-size: 18px;
+            color: #ffeb3b;
+            text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.8);
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.8);
+            z-index: 3;
+            display: none;
+        }
+
+        #textContainer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 3;
+            text-align: center;
+            width: 80%;
+            max-width: 800px;
+            max-height: 70vh;
+            padding: 60px 40px;
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            border-radius: 30px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: none;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+
+        #textContainer.show {
+            display: block;
+            opacity: 1;
+        }
+
+        #textContent {
+            transition: transform 0.6s ease-out;
+            padding-bottom: 100px;
+        }
+
+        .text-line {
+            color: #000000;
+            font-size: 32px;
+            line-height: 1.8;
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
+            margin: 15px 0;
+            opacity: 0;
+            display: none;
+        }
+
+        .text-line.show {
+            display: block;
+            animation: fadeInUp 0.8s forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .text-line.first {
+            font-size: 40px;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .text-line.last {
+            font-size: 48px;
+            font-weight: bold;
+            color: #000000;
+            margin-top: 40px;
+            animation: fadeInUp 0.8s forwards, pulse 2s infinite 0.8s;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
+            }
+            50% {
+                transform: scale(1.05);
+                text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
+            }
+        }
+
+        .text-line.instruction {
+            font-size: 28px;
+            font-weight: bold;
+            color: #000000;
+            margin-top: 20px;
+        }
+
+        .heart-icon {
+            display: inline-block;
+            color: #ff69b4;
+            font-size: 40px;
+            animation: heartbeat 1.5s infinite;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            10% { transform: scale(1.2); }
+            20% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <img id="background" src="imgs/bg_1.jpeg" alt="Background">
+
+    <div id="textContainer">
+        <div id="textContent"></div>
+    </div>
+
+    <div id="loading">
+        初始化中... <span class="heart-icon">💗</span>
+    </div>
+
+    <div id="videoContainer" style="display: none;">
+        <div style="position: relative; display: inline-block;">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        <div id="instruction">
+            <span class="heart-icon">💗</span> 请用双手比爱心手势 <span class="heart-icon">💗</span>
+        </div>
+        <div id="status"></div>
+        <div id="debug" style="color: white; margin-top: 10px; font-size: 14px;"></div>
+    </div>
+
+    <!-- MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const loading = document.getElementById('loading');
+        const videoContainer = document.getElementById('videoContainer');
+        const textContainer = document.getElementById('textContainer');
+        const textContent = document.getElementById('textContent');
+        const statusDiv = document.getElementById('status');
+        const debugDiv = document.getElementById('debug');
+
+        let hands;
+        let camera;
+        let heartDetectedFrames = 0;
+        const requiredFrames = 15;
+
+        // 求婚文案（按标点分割）
+        const proposalLines = [
+            { text: '嘿，小王同学。', special: 'first' },
+            { text: '第一次见你的那个夏天，' },
+            { text: '离我们其实很远了。' },
+            { text: '从初中操场那远远的一眼，' },
+            { text: '到上海地铁站隔着口罩的那个吻，' },
+            { text: '再到杭州公寓里，' },
+            { text: '这一盏为你亮的灯。' },
+            { text: '我走了好久好久，' },
+            { text: '才终于从观众席，' },
+            { text: '走到了你的身边。' },
+            { text: '以前，' },
+            { text: '我把喜欢藏在心里，' },
+            { text: '小心翼翼。' },
+            { text: '现在，' },
+            { text: '我想把全世界的喜欢，' },
+            { text: '都捧到你面前。' },
+            { text: '准备好了吗？', special: 'last' },
+            { text: '请向我比个心，', special: 'instruction' },
+            { text: '解锁我们的未来。', special: 'instruction' }
+        ];
+
+        let currentLineIndex = 0;
+        let scrollOffset = 0;
+
+        // 显示文案（逐行出现）
+        function showProposalTexts() {
+            // 5秒后显示白色背景并开始显示第一行
+            setTimeout(() => {
+                textContainer.classList.add('show');
+                setTimeout(() => {
+                    showNextLine();
+                }, 500); // 背景出现后0.5秒开始文字
+            }, 5000);
+        }
+
+        // 显示下一行文字
+        function showNextLine() {
+            if (currentLineIndex >= proposalLines.length) {
+                // 所有文字显示完毕，准备淡出
+                setTimeout(() => {
+                    fadeOutTexts();
+                }, 3000);
+                return;
+            }
+
+            const item = proposalLines[currentLineIndex];
+            const line = document.createElement('div');
+            line.className = 'text-line' + (item.special ? ' ' + item.special : '');
+            line.textContent = item.text;
+            textContent.appendChild(line);
+
+            // 触发动画
+            setTimeout(() => {
+                line.classList.add('show');
+            }, 50);
+
+            // 检查是否需要滚动
+            setTimeout(() => {
+                checkScroll();
+            }, 100);
+
+            currentLineIndex++;
+
+            // 显示下一行（间隔1.5秒）
+            setTimeout(() => {
+                showNextLine();
+            }, 1500);
+        }
+
+        // 检查是否需要滚动
+        function checkScroll() {
+            const containerHeight = textContainer.clientHeight;
+            const contentHeight = textContent.scrollHeight;
+            const paddingTotal = 160; // 上下padding总和 + 额外空间
+
+            // 如果内容高度超过容器高度，则滚动
+            if (contentHeight > containerHeight - paddingTotal) {
+                // 计算需要滚动的距离，确保最新的文字在可见区域内
+                const lastLine = textContent.lastElementChild;
+                if (lastLine) {
+                    const lastLineBottom = lastLine.offsetTop + lastLine.offsetHeight;
+                    const visibleBottom = scrollOffset + containerHeight - paddingTotal;
+
+                    if (lastLineBottom > visibleBottom) {
+                        scrollOffset = lastLineBottom - (containerHeight - paddingTotal);
+                        textContent.style.transform = `translateY(-${scrollOffset}px)`;
+                    }
+                }
+            }
+        }
+
+        // 淡出文案，启动摄像头
+        function fadeOutTexts() {
+            textContainer.style.transition = 'opacity 1.5s';
+            textContainer.style.opacity = '0';
+
+            setTimeout(() => {
+                textContainer.style.display = 'none';
+                loading.style.display = 'block';
+                initHandDetection();
+            }, 1500);
+        }
+
+        // 绘制手部关键点
+        function drawLandmarks(landmarks) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let hand of landmarks) {
+                // 绘制所有关键点
+                for (let i = 0; i < hand.length; i++) {
+                    const point = hand[i];
+                    const x = point.x * canvas.width;
+                    const y = point.y * canvas.height;
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = i === 4 || i === 8 ? '#ff0000' : '#00ff00';
+                    ctx.fill();
+
+                    if (i === 4 || i === 8) {
+                        ctx.fillStyle = 'white';
+                        ctx.font = '12px Arial';
+                        ctx.fillText(i === 4 ? 'thumb' : 'index', x + 8, y);
+                    }
+                }
+
+                // 绘制连线
+                const connections = [
+                    [0, 1], [1, 2], [2, 3], [3, 4],
+                    [0, 5], [5, 6], [6, 7], [7, 8],
+                    [0, 9], [9, 10], [10, 11], [11, 12],
+                    [0, 13], [13, 14], [14, 15], [15, 16],
+                    [0, 17], [17, 18], [18, 19], [19, 20]
+                ];
+
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+                ctx.lineWidth = 2;
+                for (let [start, end] of connections) {
+                    const p1 = hand[start];
+                    const p2 = hand[end];
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
+                    ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // 检测爱心手势
+        function detectHeartGesture(landmarks) {
+            if (landmarks.length !== 2) return { isHeart: false, debug: '需要双手' };
+
+            const hand1 = landmarks[0];
+            const hand2 = landmarks[1];
+
+            const thumb1Tip = hand1[4];
+            const index1Tip = hand1[8];
+            const thumb2Tip = hand2[4];
+            const index2Tip = hand2[8];
+
+            const distance = (p1, p2) => {
+                return Math.sqrt(
+                    Math.pow(p1.x - p2.x, 2) +
+                    Math.pow(p1.y - p2.y, 2) +
+                    Math.pow(p1.z - p2.z, 2)
+                );
+            };
+
+            const thumbDistance = distance(thumb1Tip, thumb2Tip);
+            const indexDistance = distance(index1Tip, index2Tip);
+            const leftHandSpan = distance(thumb1Tip, index1Tip);
+            const rightHandSpan = distance(thumb2Tip, index2Tip);
+
+            const debugInfo = `
+                拇指距离: ${thumbDistance.toFixed(3)}
+                食指距离: ${indexDistance.toFixed(3)}
+                左手张开: ${leftHandSpan.toFixed(3)}
+                右手张开: ${rightHandSpan.toFixed(3)}
+            `;
+
+            const isHeartGesture =
+                thumbDistance < 0.15 &&
+                indexDistance < 0.15 &&
+                leftHandSpan > 0.05 && leftHandSpan < 0.3 &&
+                rightHandSpan > 0.05 && rightHandSpan < 0.3;
+
+            return { isHeart: isHeartGesture, debug: debugInfo };
+        }
+
+        // 初始化 MediaPipe Hands
+        async function initHandDetection() {
+            hands = new Hands({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                }
+            });
+
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            hands.onResults(onResults);
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: 640,
+                        height: 480,
+                        facingMode: 'user'
+                    }
+                });
+
+                video.srcObject = stream;
+
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    loading.style.display = 'none';
+                    videoContainer.style.display = 'block';
+
+                    camera = new Camera(video, {
+                        onFrame: async () => {
+                            await hands.send({ image: video });
+                        },
+                        width: 640,
+                        height: 480
+                    });
+                    camera.start();
+                };
+            } catch (error) {
+                loading.textContent = '无法访问摄像头，请允许摄像头权限';
+                console.error('Camera error:', error);
+            }
+        }
+
+        // 处理检测结果
+        function onResults(results) {
+            if (results.multiHandLandmarks) {
+                drawLandmarks(results.multiHandLandmarks);
+            }
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length === 2) {
+                const result = detectHeartGesture(results.multiHandLandmarks);
+                debugDiv.innerHTML = result.debug;
+
+                if (result.isHeart) {
+                    heartDetectedFrames++;
+                    const progress = Math.floor((heartDetectedFrames / requiredFrames) * 100);
+                    statusDiv.textContent = `检测到爱心手势！${progress}%`;
+                    statusDiv.style.color = '#ff69b4';
+
+                    if (heartDetectedFrames >= requiredFrames) {
+                        statusDiv.textContent = '成功！跳转中...';
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 500);
+                    }
+                } else {
+                    heartDetectedFrames = Math.max(0, heartDetectedFrames - 1);
+                    statusDiv.textContent = '请调整手势...';
+                    statusDiv.style.color = '#ffeb3b';
+                }
+            } else {
+                heartDetectedFrames = Math.max(0, heartDetectedFrames - 2);
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length === 1) {
+                    statusDiv.textContent = '请使用双手比心';
+                    debugDiv.textContent = '只检测到一只手';
+                } else {
+                    statusDiv.textContent = '未检测到手部';
+                    debugDiv.textContent = '请将双手放在镜头前';
+                }
+                statusDiv.style.color = '#ffffff';
+            }
+        }
+
+        // 启动：显示文案
+        showProposalTexts();
+    </script>
+</body>
+</html>
