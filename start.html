@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8" />
     <title>💗 Love Heart</title>
@@ -27,6 +28,62 @@
             z-index: 1;
         }
 
+        #animation-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .floating-item {
+            position: absolute;
+            bottom: -150px;
+            opacity: 0.8;
+            animation: floatUp linear forwards;
+        }
+
+        .balloon {
+            border-radius: 50% 50% 50% 50%;
+            box-shadow: inset -5px -5px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .balloon::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .bubble {
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.4) 20%, rgba(255, 255, 255, 0.1) 60%, rgba(255, 255, 255, 0.4) 100%);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) translateX(0) rotate(0deg);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 0.8;
+            }
+
+            100% {
+                transform: translateY(-120vh) translateX(var(--drift)) rotate(var(--rot));
+                opacity: 0;
+            }
+        }
+
         #videoContainer {
             position: absolute;
             top: 50%;
@@ -41,7 +98,8 @@
             height: 480px;
             border: 3px solid rgba(255, 255, 255, 0.5);
             border-radius: 20px;
-            transform: scaleX(-1); /* 镜像翻转 */
+            transform: scaleX(-1);
+            /* 镜像翻转 */
             box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
         }
 
@@ -65,8 +123,17 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.8; transform: scale(1.05); }
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.8;
+                transform: scale(1.05);
+            }
         }
 
         #status {
@@ -140,10 +207,16 @@
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
+        }
+
+        #textContent {
+            position: relative;
+            z-index: 10;
         }
 
         .text-line.first {
@@ -161,10 +234,13 @@
         }
 
         @keyframes pulse {
-            0%, 100% {
+
+            0%,
+            100% {
                 transform: scale(1);
                 text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
             }
+
             50% {
                 transform: scale(1.05);
                 text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
@@ -186,16 +262,28 @@
         }
 
         @keyframes heartbeat {
-            0%, 100% { transform: scale(1); }
-            10% { transform: scale(1.2); }
-            20% { transform: scale(1); }
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            10% {
+                transform: scale(1.2);
+            }
+
+            20% {
+                transform: scale(1);
+            }
         }
     </style>
 </head>
+
 <body>
     <img id="background" src="imgs/bg_1.jpeg" alt="Background">
 
     <div id="textContainer">
+        <div id="animation-container"></div>
         <div id="textContent"></div>
     </div>
 
@@ -229,6 +317,7 @@
         const textContent = document.getElementById('textContent');
         const statusDiv = document.getElementById('status');
         const debugDiv = document.getElementById('debug');
+        const animationContainer = document.getElementById('animation-container');
 
         let hands;
         let camera;
@@ -260,6 +349,69 @@
 
         let currentLineIndex = 0;
         let scrollOffset = 0;
+
+        // 生成随机颜色
+        function getRandomColor(isDark = false) {
+            const hue = Math.floor(Math.random() * 360);
+            const sat = 70 + Math.floor(Math.random() * 30);
+            const light = isDark ? 40 : 60 + Math.floor(Math.random() * 20);
+            return `hsl(${hue}, ${sat}%, ${light}%)`;
+        }
+
+        // 创建漂浮元素
+        function createFloatingElement() {
+            const el = document.createElement('div');
+            el.className = 'floating-item';
+
+            const isBalloon = Math.random() > 0.3; // 70% balloons, 30% bubbles
+
+            // 随机大小
+            const size = 30 + Math.random() * 40; // 30-70px
+            el.style.width = `${size}px`;
+            el.style.height = `${size}px`; // balloons are round mostly
+
+            // 随机位置
+            const left = Math.random() * 100;
+            el.style.left = `${left}%`;
+
+            // 随机漂移和旋转
+            const drift = (Math.random() - 0.5) * 200 + 'px';
+            const rot = (Math.random() - 0.5) * 60 + 'deg';
+            el.style.setProperty('--drift', drift);
+            el.style.setProperty('--rot', rot);
+
+            // 动画时间
+            const duration = 8 + Math.random() * 10;
+            el.style.animationDuration = `${duration}s`;
+
+            if (isBalloon) {
+                el.classList.add('balloon');
+                el.style.backgroundColor = getRandomColor();
+                // Balloon shape (slightly oval vertical usually, but here circle is ok)
+                // Let's make it slightly oval
+                el.style.height = `${size * 1.2}px`;
+            } else {
+                el.classList.add('bubble');
+                // transparent-ish
+            }
+
+            animationContainer.appendChild(el);
+
+            // 动画结束后移除
+            setTimeout(() => {
+                el.remove();
+            }, duration * 1000);
+        }
+
+        // 启动背景动画
+        function startBackgroundAnimation() {
+            // 初始创建一些
+            for (let i = 0; i < 10; i++) {
+                setTimeout(createFloatingElement, Math.random() * 3000);
+            }
+            // 持续创建
+            setInterval(createFloatingElement, 1500);
+        }
 
         // 显示文案（逐行出现）
         function showProposalTexts() {
@@ -516,7 +668,10 @@
         }
 
         // 启动：显示文案
+        // 启动：显示文案并开始动画
+        startBackgroundAnimation();
         showProposalTexts();
     </script>
 </body>
+
 </html>
